@@ -2,13 +2,9 @@ import os
 import json
 import pandas as pd
 
-
 rumor_id = "323898679834587136"
-
 base_path = f"data/aug-rnr-data_full/bostonbombings/rumours/{rumor_id}"
-
 tweets = []
-
 
 def extract_tweet(path, is_source=False):
     with open(path, "r") as f:
@@ -25,25 +21,15 @@ def extract_tweet(path, is_source=False):
         "parent_id": data.get("in_reply_to_status_id_str"),
         "is_source": is_source
     })
-
-
 source_path = os.path.join(base_path, "source-tweets")
-
 for file in os.listdir(source_path):
     if file.endswith(".json") and not file.startswith("._"):
         extract_tweet(os.path.join(source_path, file), True)
-
-
 reaction_path = os.path.join(base_path, "reactions")
-
 for file in os.listdir(reaction_path):
     if file.endswith(".json") and not file.startswith("._"):
         extract_tweet(os.path.join(reaction_path, file))
-
-
 df = pd.DataFrame(tweets)
-
 df.to_csv("data/rumor_323898679834587136.csv", index=False)
-
 print(df.head())
 print("Total tweets:", len(df))
