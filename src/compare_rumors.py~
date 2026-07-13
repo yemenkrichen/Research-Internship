@@ -1,0 +1,13 @@
+import os
+rumors ="data/aug-rnr-data_full/bostonbombings/rumours"
+folders = os.listdir(rumors)
+for folder in folders:
+    folder_path =os.path.join(rumors,folder,"source-tweets")
+    files = os.listdir(folder_path)
+    for file in files:
+        if file.endswith('.json'):
+            json_path = os.path.join(folder_path, file)
+            with open(json_path,'r') as f:
+                data= json.load(f)
+            print(data["full_text"])
+            
