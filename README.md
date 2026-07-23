@@ -1,1 +1,16 @@
-# Research-Internship
+# Investigating Political Bias and Emotional Contagion in Misinformation Cascades Using An Agent-Based SDPNRI Model
+This repository contains the code, data processing pipeline, and simulation framework developed for my summer 2026 research project on modeling misinformation dynamics. The project uses an Agent-Based SDPNRI to investigate how emotional intensity and political bias influence misinformation diffusion, persistence, and debunking thresholds within online social networks.
+The project answers the question: 
+How does the introduction of political confirmation bias change the macroscopic density of active debunkers required to contain an online rumor compared to a purely emotional baseline?
+## Project Overview
+Classical epidemiological rumor models (like standard SIR or the recent 2024 SEDPNR framework) lack several important compartments that describe sociological impact of debunkers in rumor omission on social networks. SEDPNR for example, (Susceptible, Exposed, Doubtful, Positively-Infected, Negatively-Infected, Restrained) which was the starting point from my research, assumes that no one in the network can gain complete immunity to a rumour and can always fall back into the susceptible state.
+To address these limitations this project introduces the SDPNRI model which removes the exposed state as it does not represent a real compartment phase such as in real disease spread where the individual is infected but not yet infectious. In misinformation modeling I believe that exposure to a misinformation is instant therefore for simplification purposes, E was removed. Additionally, I added the Immune compartment (I) representing active debunkers and people with expertise who can influence rumor participants toward restrained or immune states.
+To tie the data and the math together, I am building a custom Agent-Based Model environment. Every unique agent on the virtual network reads their timeline and calculates their own action using a dynamic Retweet Probability Formula. All other factors such as follower count, age of the tweet, attractiveness of the post... will be held constant in purpose of studying the relationship between political bias and emotion contagion and debunkers thresholds.
+Pretweet = Political Bias × Emotion (Vader score)
+• In the baseline run, political bias is locked at neutral = 1, meaning the cascade is driven entirely by the emotion scores extracted from my dataset.
+• In the conspiracy scenario, the text and network remain identical, but we activate the bimodal political bias variable which acts as a multiplier prompting the need of more debunkers.
+## Dataset
+For this project I will be working with a subset from the PHEME Twitter data from the 2013 Boston Marathon Bombings. The rumor claimed that an 8-year-old girl, who supposedly survived the Sandy Hook Elementary School shooting in December 2012, traveled to Boston four months later to run the marathon in remembrance of her classmates, and was tragically killed in the bombings.
+## Project Structure
+The repository is organized into three main components: the raw and processed datasets, the data processing pipeline, and the Agent-Based Model (ABM) simulation environment.
+
