@@ -1,6 +1,4 @@
 from mesa import Agent
-
-
 class TwitterUser(Agent):
 
     def __init__(
@@ -14,7 +12,6 @@ class TwitterUser(Agent):
     ):
 
         super().__init__(model)
-
         self.user_id = user_id
 
         # SDPNRI compartment
@@ -40,8 +37,5 @@ class TwitterUser(Agent):
         )
 
         return probability
-
-
     def step(self):
-
         self.time_in_state += 1
