@@ -1,4 +1,3 @@
-
-.venv/
-src/extract_rumor.py
 venv/
+__pycache__/
+*.pyc
