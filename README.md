@@ -10,7 +10,7 @@ Pretweet = Political Bias × Emotion (Vader score)
 • In the baseline run, political bias is locked at neutral = 1, meaning the cascade is driven entirely by the emotion scores extracted from my dataset.
 • In the conspiracy scenario, the text and network remain identical, but we activate the bimodal political bias variable which acts as a multiplier prompting the need of more debunkers.
 ## Dataset
-For this project I will be working with a subset from the PHEME Twitter data from the 2013 Boston Marathon Bombings. The rumor claimed that an 8-year-old girl, who supposedly su rvived the Sandy Hook Elementary School shooting in December 2012, traveled to Boston four months later to run the marathon in remembrance of her classmates, and was tragically killed in the bombings.
+For this project I will be working with a subset from the PHEME Twitter data from the 2013 Boston Marathon Bombings. The rumor claimed that an 8-year-old girl, who supposedly survived the Sandy Hook Elementary School shooting in December 2012, traveled to Boston four months later to run the marathon in remembrance of her classmates, and was tragically killed in the bombings.
 ## Project Structure
 The repository is organized into three main components: the raw and processed datasets, the data processing pipeline, and the Agent-Based Model (ABM) simulation environment.
 ## Code
@@ -39,7 +39,10 @@ series.py : Processes user state transitions over time (using an epidemic-style 
 
 calib.py : Calculates the transition rates for your compartmental misinformation model by dividing the total number of times each state transition occurs by the total "person-seconds" spent in the source compartment, then saves the calibrated rates into a CSV file.
 ## Limitations
-Single Event Dataset: The model is calibrated a subset from the PHEME dataset tha represents a well-documented casey study. however, the findings may not generealize to other misinformation events.
+The model is calibrated a subset from the PHEME dataset tha represents a well-documented casey study. however, the findings may not generealize to other misinformation events.
 
 Political bias is introduced as a controllable variable rather than being inferred from real user data. Consequently, the model explores hypothetical scenarios rather than reconstructing the true ideological characteristics of individual Twitter users.
 
+Yemen Krichen, July 2026
+
+Institute of Computing in Research
