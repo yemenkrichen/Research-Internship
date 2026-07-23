@@ -1,0 +1,6 @@
+import json
+with open("boston_user_transitions.json", "r", encoding="utf-8") as f:
+        text = json.load(f)
+for user,activities in text:
+    for act in activities:
+        print(text.get("text")

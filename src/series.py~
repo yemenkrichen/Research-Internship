@@ -1,0 +1,68 @@
+import json
+import csv
+from collections import defaultdict
+
+with open("boston_user_transitions.json", "r") as f:
+    data = json.load(f)
+
+events = []
+
+for user, history in data.items():
+    for event in history:
+        events.append({
+            "time": event["seconds_since_global_t0"],
+            "transition": event["transition"].replace(" ", "")
+        })
+
+events.sort(key=lambda x: x["time"])
+all_users = len(data)
+
+counts = {
+    "S": all_users,
+    "D": 0,
+    "P": 0,
+    "N": 0,
+    "R": 0,
+    "I": 0
+}
+
+rows = []
+rows.append([
+    0,
+    counts["S"],
+    counts["D"],
+    counts["P"],
+    counts["N"],
+    counts["R"],
+    counts["I"]
+])
+for event in events:
+
+    source, target = event["transition"].split("->")
+    counts[source] -= 1
+    counts[target] += 1
+
+    rows.append([
+        event["time"],
+        counts["S"],
+        counts["D"],
+        counts["P"],
+        counts["N"],
+        counts["R"],
+        counts["I"]
+    ])
+
+with open("compartment_timeseries.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow([
+        "time",
+        "S",
+        "D",
+        "P",
+        "N",
+        "R",
+        "I"
+    ])
+
+    writer.writerows(rows)
+print("Saved compartment_timeseries.csv")

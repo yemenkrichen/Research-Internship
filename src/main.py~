@@ -1,0 +1,77 @@
+import os
+import json
+from datetime import datetime
+
+path ="data/aug-rnr-data_full/bostonbombings"
+subfolders=["rumours","non-rumours"]
+conversation_trees={}
+
+def twitter_time(time):
+    if not time:
+        return None
+    try:
+        return datetime.strptime(time,"%a %b %d %H:%M:%S +0000 %Y")
+    except ValueError:
+        return None
+for sub in subfolders:
+    dir_path= os.path.join(path,sub)
+    for thread in os.listdir(dir_path):
+        thread_path= os.path.join(dir_path, thread)
+        if not os.path.isdir(thread_path) or thread.startswith("."):
+            continue
+        conversation_trees[thread]={}
+        source_dir= os.path.join(thread_path,"source-tweets")
+        source_file = None
+        files =[f for f in os.listdir(source_dir) if f.endswith(".json")]
+        if files:
+            source_file= os.path.join(source_dir, files[0])
+        if source_file and os.path.exists(source_file):
+            try:
+                with open(source_file, 'r', encoding='utf-8') as f:
+                    src= json.load(f)
+                    user_id=src.get("user",{}).get("id_str")
+                    t_0 = twitter_time(src.get("created_at"))
+                    text= src.get("full_text") or src.get("text","")
+                    if user_id and t_0:
+                        conversation_trees[thread][user_id]=[
+                            {
+                                "type":"source",
+                                "created_at":t_0,
+                                "text": text,
+                                "seconds_since_t0": 0.0
+                            }
+                        ]
+            except:
+                continue
+        reactions_dir=os.path.join(thread_path,"reactions")
+        if os.path.exists(reactions_dir):
+            for file in os.listdir(reactions_dir):
+                if not file.endswith(".json") or file.startswith("._"):
+                    continue
+                r_path= os.path.join(reactions_dir,file)
+                with open(r_path,'r',encoding='utf-8') as f:
+                    r= json.load(f)
+                    r_user_id = r.get("user",{}).get("id_str")
+                    t_n= twitter_time(r.get("created_at"))
+                    r_text= r.get("full_text") or r.get("text","")
+                    if r_user_id and t_n and "t_0" in locals() and t_0:
+                        deltaseconds= (t_n-t_0).total_seconds()
+                        action_data = {
+                            "type": "reaction",
+                            "created_at": t_n,
+                            "text": r_text,
+                            "seconds_since_t0":deltaseconds
+                        }
+                        if r_user_id not in conversation_trees[thread]:
+                            conversation_trees[thread][r_user_id]=[]
+                        conversation_trees[thread][r_user_id].append(action_data)
+print(f"Total threads successfully processed: {len(conversation_trees)}")
+
+if conversation_trees:
+    sample_thread = list(conversation_trees.keys())[0]
+    print(f"\nSample Thread ID: {sample_thread}")
+    
+    for user, actions in list(conversation_trees[sample_thread].items())[:3]:
+        print(f"  User {user}: {len(actions)} action(s)")
+        for action in actions:
+            print(f"    - [{action['type']}] ({action['seconds_since_t0']}s): {action['text'][:60]}...")

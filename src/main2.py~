@@ -1,0 +1,88 @@
+import os
+import json
+from datetime import datetime
+
+path ="data/aug-rnr-data_full/bostonbombings"
+subfolders=["rumours","non-rumours"]
+conversation_trees={}
+
+def twitter_time(time):
+    try:
+        return datetime.strptime(time,"%a %b %d %H:%M:%S +0000 %Y")
+    except ValueError:
+        return None
+
+for sub in subfolders:
+    dir_path= os.path.join(path,sub)
+    for thread in os.listdir(dir_path):
+        thread_path= os.path.join(dir_path, thread)
+        if not os.path.isdir(thread_path) or thread.startswith("."):
+            continue
+        conversation_trees[thread]=[]
+        source= os.path.join(thread_path,"source-tweets")
+        files = [f for f in os.listdir(source) if f.endswith(".json") and not f.startswith(".")]
+        if files:
+            source_file= os.path.join(source, files[0])
+        if source_file and os.path.exists(source_file):
+            try:
+                with open(source_file, 'r', encoding='utf-8',errors='ignore') as f:
+                    src= json.load(f)
+                    if "retweeted_status" in src:
+                        retweet= src["retweeted_status"]
+                        source_author_id= retweet.get("user",{}).get("id_str")
+                        t0=twitter_time(retweet.get("created_at"))
+                        text=retweet.get("full_text") or retweet.get("text","")
+                        rt_count = retweet.get("retweet_count", 0)
+                        fav_count = retweet.get("favorite_count", 0)
+                    else:
+                        source_author_id=src.get("user",{}).get("id_str")
+                        t0 = twitter_time(src.get("created_at"))
+                        text= src.get("full_text") or src.get("text","")
+                        rt_count = src.get("retweet_count", 0)
+                        fav_count = src.get("favorite_count", 0)
+
+                if source_author_id and t0:
+                    conversation_trees[thread].append(
+                           {
+                                "tweet_id":src.get("id_str"),
+                                "user_id":source_author_id,
+                                "parent_user_id":None,
+                                "type":"source",
+                                "text": text,
+                                "seconds_since_t0": 0.0,
+                                "retweet_count": rt_count,
+                                "favorite_count": fav_count
+                            }
+                        )
+            except Exception as e:
+                print(f"Error parsing thread {thread}: {e}")
+                continue
+        reactions=os.path.join(thread_path,"reactions")
+        if os.path.exists(reactions):
+            for file in os.listdir(reactions):
+                if not file.endswith(".json") or file.startswith("._"):
+                    continue
+                r_path= os.path.join(reactions,file)
+                with open(r_path,'r',encoding='utf-8',errors='ignore') as f:
+                    r= json.load(f)
+                    r_user_id = r.get("user",{}).get("id_str")
+                    tn= twitter_time(r.get("created_at"))
+                    r_text= r.get("full_text") or r.get("text","")
+                    if r_user_id and tn and "t0" in locals() and t0:
+                        deltaseconds= (tn-t0).total_seconds()
+                        action_data = {
+                            "tweet_id": r.get("id_str"),
+                            "user_id": r_user_id,
+                            "parent_user_id": r.get("in_reply_to_user_id_str") or source_author_id,
+                            "type": "reaction",
+                            "created_at": tn,
+                            "text": r_text,
+                            "seconds_since_t0": deltaseconds
+                        }
+                        conversation_trees[thread].append(action_data)
+        conversation_trees[thread] = sorted(conversation_trees[thread], key=lambda x: x["seconds_since_t0"])
+
+with open("bostonbombings_clean.json", "w", encoding="utf-8") as f:
+    json.dump(conversation_trees, f, indent=4, default=str)
+
+print("All data successfully saved to 'bostonbombings_clean.json'")

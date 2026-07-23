@@ -1,0 +1,513 @@
+import json
+from datetime import datetime
+import matplotlib.pyplot as plt
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from deep_translator import GoogleTranslator
+from langdetect import detect, LangDetectException
+import re
+import unicodedata
+
+nltk.download("vader_lexicon", quiet=True)
+
+date_format = "%Y-%m-%d %H:%M:%S"
+restrained_after = 43200
+
+
+#The following function cleans text by removing white spaces and URLs and ensures converting unique charachters into standard formats.
+def normalize(text):
+    text = unicodedata.normalize('NFKC', text)
+    text = text.lower()
+    text = re.sub(r'http\S+', '', text)
+    text = text.replace('\u201c', '"').replace('\u201d', '"')
+    text = text.replace('\u2018', "'").replace('\u2019', "'")
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+irrelevant = [
+    "@LeighMelone Good choice for your new profile pic.. Keep those tweets coming. :)P"
+    "@MichaelSkolnik *Nods solemnly* I say we blow the dust of the old chair and Fry that clown when we catch him"
+    "@ASouthernJule thanks cuz"
+    "@wessa_18 haha wat ben jij voor een ei dan"
+    "@NickKristof lol, you mention names now?"
+    "@TripleMMelb &amp; the arseholes behind it personify the word COWARDS. They R lower than the scum on the bottom of ones shoes!"
+    "@CoreySSM"
+    "@Zeinah5 @donia_iskandar http://t.co/jjzoyVJZWR"
+    "@PLL_A_Team  They will for sure!"
+    "@FlavorFlav didn't you beat your stepson? I was reading it in the Newpaper. That's very bad!!!"
+    "@FlavorFlav wassup"
+    "@FlavorFlav you need to get that job for me flavor and stop playing games G!!!!"
+]
+#The following lists are extracted from my data and were classified into doubtful/immune categories using a LLM
+doubtful = [
+    "@DonatoDorazio91 what's that ?"
+    "@MinnyLovin Pretty sure that's not real",
+    '@IfeanyiGbemudu She may or may not have been in the race, but the most recent report is that it was a boy that died - a spectator.',
+    '@angoooo i just saw someone else tweeted it and thought it was true chill bro',
+    "Wait she's the one who died?!",
+    '@na_you_biko @deepitboss I thought they made an exception.',
+    '@LegallyBruntte Really???',
+    '.@ZackS6 pretty sure it was an 8 year old boy',
+    '@proos2 Is it? Whatev',
+    '@305raider I believe so. It was on a "Breaking News" twitter account followed by thousands',
+    '@305raider I saw that too..on @ABC30..but other reports say it was a girl who died. You know how rumors get spread on Twitter though',
+    '@M_G0NZ Was that the 8 year old girl who died???',
+    "@M_G0NZ Don't think so. Reports was the child who died was a boy",
+    "@ThisGirlEmma_TW i don't know, I'm watching CBS NEWS and they said boy",
+    '@biebskittle thought it was a girl?? Not a boy??',
+    '@Juskish SERIOUSLY?',
+    "@MyBelieveTour she didn't die did she?",
+    '@brendanwebster @devon15_j you sure?!!',
+    '@Cassio_macedo1 I thought u had to be 18+ to run the marathon?',
+    '@mylifeasandrew i thought it was a boy',
+    '@mike_ham21 @lovebrittannny I believe this us fake.',
+    "@HowYouSeelt I read an article that this isn't true.",
+    "@HowYouSeelt @KcEmphasis #prayforboston I think it's a boy k2 sya, Kc. Dli daw ni..",
+    '@MadFerretLoki @Dkwuff thinking theres confusion on who were killed in the blast should probably edit the post to the 2 killed in the blast',
+    '@AkahiOtter @AtariOtter Uh... that conflicts with this story. What 8 year old was running a marathon? http://t.co/fobvSzxKZz',
+    '@AkahiOtter I heard it was a boy. The news said it was a boy.',
+    '“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/aJJ8EjSVEm” wait her name was joe???',
+    "@carlygose I don't think she died, she would've been pretty damn fast if she was at the finish line when the bomb went off.",
+]
+ 
+immune = [
+    "@FlavorFlav I feel the same way homie.  I feel sad. About that shit flav"
+    "@FlavorFlav just awful .. this world has gone mad :(    xo flav"
+    "@FlavorFlav I wish I knew why, I need someone to help me understand why too, just awful! :-( #fuckedupworldwelivein"
+    "@FlavorFlav some people are just fuckin sick in the head"
+    "@FlavorFlav I feel a fundraising @PublicEnemyFTP concert for the victims is coming up..."
+    "@FlavorFlav Why even ask at this point. There will always be fucked up people, but the good will always out number the insane."
+    "@FlavorFlav his was my baby cousin"
+    "@FlavorFlav Happens all over the world daily. We only care when we aren't the ones doing it."
+    "@Independent_ie So, so tragic!"
+    "@Independent_ie too sad :("
+    "@bbiebercyrus youre right, I looked up that fun run and it not for another month"
+    "@xkatealicex @juicechambo So sad! Such an evil world sometimes. But through chaos comes unity."
+    "@Trishie_D I have no idea. I can't even contemplate it."
+    "@Trishie_D I actually started sobbing whwn I heard that."
+    "@Trishie_D that's awful!"
+    "@namgayzam @SonamOngmo :'( I just don't get why at a venue like that!?!"
+    '@SonamOngmo :"('
+    "@CoreySSM so sad ..."
+    "@ForAmerica Heart breaking"
+    "@TripleMMelb Nothing can justify these actions. I don't know how cops keep their composure with these type of humans."
+    "@kayfr3sh damn thats messed up"
+    "@NickKristof my prayers to their family!! So sad these people have to go thru this bc of some cowards 😥"
+    "@NickKristof saw a neighbor of theirs say (on FB) his sister lost a leg. So horrifying."
+    "@NickKristof oh my god. I'm so heartsick for that dad right now I can hardly stand it."
+    "@NickKristof oh my god. I'm so heartsick for that dad right now I can hardly stand it."
+    "@HoranNiaIl so sad :'("
+    '@HoranNiaIl :( xx'
+    "@MichaelSkolnik I so feel for the victims of this heinous crime Michael."
+    "@MichaelSkolnik what an unspeakable horror for one family to suffer."
+    "@MichaelSkolnik ... Prayers go up for the family"
+    "@KPRCgilmore #icant"
+    "\u201c@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT \ud83d\ude14\ud83d\ude4f http://t.co/yUR4OG5oMP\u201d\n\nSorry to say..\nBut it was a 8 year old boy",
+    "@Zeinah5 @Donia_Iskandar \nSorry but this picture is wrong. \nIt was an 8 year old BOY who died.\nR.I.P.\ud83d\udc7c\ud83d\ude2a\ud83d\ude25",
+    "@kingsleyisilebo \nThe poor 8 year old was a little boy that died not this little girl.",
+    "\u201c@JuiceChambo: Boy, 8, killed in Boston marathon blast was waiting to meet his dad when he finished #JuiceFM\u201d\n\n:(",
+    "@CommonWhiteGal *Boy",
+    "\"@fvmouslife: \"RIP to the 8 year old girl who died in Boston's explosions, while running for the Sandy Hook kids.\" It was a boy",
+    "Boston Globe reporting that the mom &amp; sister of the 8-yr-old boy killed, Martin Richard, are also badly injured. #Prayers",
+    "@MichaelSkolnik: Mother of Martin Richard, 8 yr old boy killed in the blasts has a brain injury; boy's sister lost a leg.",
+    "@GraceBaldwin10 This girl was not even at the race.  It's FAKE!!  Plus the 8 year old killed was a boy #prayforboston",
+    '@MinnyLovin it.was.a.boy.',
+    '@MinnyLovin This was not the child that died.  Just another Twitter scam.',
+    "@MinnyLovin It's not a little girl. Where the heck do people get their information.",
+    "@MinnyLovin Hi - that's not real. It was a boy that passed away. This photo is a girl from somewhere else",
+    '@MyBelieveTour it was an 8 year old boy that died, not a girl.',
+    '@carlygose noooooo, it was an 8 year old boy that died, not a girl.',
+    '@GraceBaldwin10 it was an 8 year old boy, not a girl.',
+    '@MinnyLovin it was an 8 year old boy, not a girl.',
+    'An 8 year old boy who was cheering his dad died today in Boston. #heartbreak #hinews',
+    '@jjaycole No 8 year old girl killed. This is false info spreading around Twitter. Sadly, an 8 year old BOY was killed in the attacks.',
+    '@IfeanyiGbemudu No 8 year old girl killed. This is false info spreading around Twitter. Sadly, an 8 year old BOY was killed in the attacks.',
+    '8yr old boy who was killed in blast was on the sidelines, waiting to greet his dad when he crossed the finish line. #heartbreaking #Boston',
+    "@Dsie1ski2 it was an 8 year old boy. don't use a tragedy to get retweets. if you want to show respect,be genuine and get your facts straight",
+    '@Dsie1ski2 you have to be 18 to run the Boston Marathon, anyway',
+    '@Dsie1ski2 this little girl is still alive. She was tuning in a different marathon. You can believe everything you read. Look at her shirt.',
+    '@CaseySopp I know there was a boy too.. No need to comment on my shit.. I need some bitch be gone',
+    '@AustinMatteson it was actually an 8 year old boy and he was a bystander. Watch the news.',
+    '@AustinMatteson Woah being a little aggressive. Just saying that its not true. It was a little boy and he should be prayed for.',
+    "@ETownBelieber No she wasn't.",
+    "@MyBelieveTour Pretty repulsive to suggest that someone's child, doing a fun run in a different state to Boston, is dead. She isn't.",
+    '@_dominicka An 8-year-old BOY is one of the three known dead, multiple news outlets reported. Several of the INJURED are also children.',
+    "@iAmCRamsey717 IT WASN'T A 8 YEAR OLD GIRL IT WAS A BOY DO YOUR RESEARCH",
+    "@ItzGerm that's fake. It was an 8 year old boy, not a girl.",
+    '@ItzGerm That’s not the kid who died.',
+    '@NYMericaGirl it was a little boy that was fake about the little girl',
+    'One of the people who died in Boston was an 8 year old boy, who was at the finish line waiting for his dad. 😔',
+    'RT @steffenjohn07: One of the people who died in Boston was an 8 year old boy, who was at the finish line waiting for his dad. 😔',
+    '@Fireboltery this is fake xx',
+    "@Fireboltery it was an 8 year old boy. Not girl. Watch the news and it's disgusting how all you care about is RT's",
+    '@TanyaG007 fake. It was a boy not a girl.',
+    "@soooimERIC that's not who died..it was an right year old boy, confirmed by officials. Don't believe in media hype. She's fine.",
+    '8 yr old boy who was killed was waiting for his father to finish the boston marathon. His mother and sister were also injured. May he RIP.',
+    "Mother of Martin Richard, 8 yr old boy killed in the blasts has a brain injury; boy's sister has lost a leg. #PrayForBoston",
+    "MT @MichaelSkolnik: Mother of Martin Richard, 8 yr old boy killed in blasts has a brain injury; boy's sister has lost leg. #BostonMararthon",
+    "🙏 “@MichaelSkolnik: Mother of Martin Richard, 8 yr old boy killed in the blasts has a brain injury; boy's sister lost a leg. #PrayForBoston”",
+    "@MichaelSkolnik: Mother of Martin Richard, 8 yr old boy killed in the blasts has a brain injury; boy's sister has lost a leg. #PrayForBoston",
+    "“@MichaelSkolnik: Mother of Martin Richard, 8 yr old boy killed in the blasts has a brain injury; boy's sister lost a leg. #PrayForBoston”",
+    '@TheRealTeeMacc This is #FAKE! It was an 8-yr old BOY! It was on the news lastnight.',
+    '@Genderuwota48 @hopeforboston she is very well alive. An 8 year old boy died.',
+    'An 8 year old boy, Martin Richard, was killed at the Boston Marathon as he waited to give his father a hug at the finish line #prayforboston',
+    '@wessa_18 it was a 8 year old boy who died',
+    '@deepitboss false',
+    "@deepitboss @SimplyShanWalk that's inaccurate.",
+    '@deepitboss @NaijaRoyale this is false. There is an age requirement to run a marathon.',
+    '@kailawood_unc25 Fake! http://t.co/ZpQXCjfc3H',
+    "@Jay__MilL Yeah. It was a 8 year old boy that died. Not a girl. That's not a pic from the Boston Marathon.",
+    '@ZackS6 and it says 5k on the shirt so the thirst for attention is strong with you',
+    "@GraceBaldwin10 This girl was not even at the race.  It's FAKE!!  Plus the 8 year old killed was a boy #prayforboston",
+    '@LovePAMHSKYE @GraceBaldwin10 and the 8 year old boy was a bystander.',
+    '@sandierpastures @fuccyoudis2o9 it was a boy who died. #checkfacts',
+    '@sandierpastures @fuccyoudis2o9 the little girl is actually wearing a JOE CASELLA 5K bib! Not in #bostonmarathon ...',
+    '@sandierpastures nah, I saw that earlier  and people are pissed coz of the wrong info',
+    '@zPipher3 dude it was a little boy ...',
+    "@xnatehatex bro that's fake, it was an 8 year old boy spectator.",
+    "“@DanielleFacts: 8 yr old boy who died in Boston's explosions, running for the Sandy Hook kids. #PrayForBoston http://t.co/zGngVQCjsm” FAKE",
+    "@JamesRandaII Yeah but people are saying he was racing and he wasn't. If people are going to use this for RTs at least get it right aha",
+    '@Zardari_Khapay correct you records it was an 8year old boy you died in the event not this girl !',
+    'RT @KPRCgilmore: 8yr old boy who was killed in blast was on the sidelines, waiting to greet his dad when he crossed the finish line. #he ...',
+    '8 yr old boy was killed yesterday in the Boston attack. His mom had brain surgery and his sibling lost a leg. Mercy.  #prayers4Boston',
+    'RT @NickKristof: Boston Globe reporting that the mom &amp; sister of the 8-yr-old boy killed, Martin Richard, are also badly injured. #P ...',
+    'RT @NickKristof: Boston Globe reporting that the mom &amp; sister of the 8-yr-old boy killed, Martin Richard, are also badly injured. #Prayers',
+    '@Simmsy09 but thats fake http://t.co/kXuLOOWMFM',
+    'RT @ReaganGomez: 8 yr old boy was killed yesterday in the Boston attack. His mom had brain surgery and his sibling lost a leg. Mercy.  # ...',
+    "i'm getting teary eyed... an 8 year old boy was one of the two people who've been confirmed dead... #prayforboston",
+    "RT @biebskittle: i'm getting teary eyed... an 8 year old boy was one of the two people who've been confirmed dead... #prayforboston",
+    "@808SnPancakes that's horrible that ppl are saying the wrong thing. sigh.",
+    '@3rika hey E, it was a boy that died. Sadly, I think that account is fake',
+    "@3rika think that's just twitters doing smh. CNN has been reporting its an 8 year old BOY since 6pm.",
+    'RT @MichaelSkolnik: 8 yr old boy who was killed was waiting for his father to finish the boston marathon. His mother and sister were als ...',
+    'Boston Globe: 8yo Boy Killed in Blast Was Waiting at Finish Line for His Dad.',
+    '“@KTLA: Boston Globe: 8yo Boy Killed in Blast Was Waiting at Finish Line for His Dad.',
+    "@lp550 are you fucking stupid? That's a little fucking boy his name says fucking joe on the thing, ignorant people like you&lt;&lt;&lt;",
+    '@eric_is_back @alexsensation it was an 8 year old boy',
+    '@eric_is_back @alexsensation this is wrong! It was an 8 yr old boy that died.',
+    'No disrespect, but the 8 year old who died in the Boston bombing yesterday was a boy who was watching his dad. Yes, a boy, not a girl.',
+    'RT @kayfr3sh: No disrespect, but the 8 year old who died in the Boston bombing yesterday was a boy who was watching his dad. Yes, a boy, ...',
+    'The 8yo boy killed in the Boston bomb blasts was waiting for his dad to finish the marathon. His mum &amp; sister are critical. #NewsRoom',
+    'RT @TripleMMelb: The 8yo boy killed in the Boston bomb blasts was waiting for his dad to finish the marathon. His mum &amp; sister are c ...',
+    '@Yahya_Roxstar  ya he was a boy',
+    '#RIP - 8-Year-Old Boy Who Was Killed in Boston Bombings: He Was Waiting to Hug His Dad at the Finish Line http://t.co/EBzdqGzjwl',
+    '@DirekJoey its a fake photo direk. The kid who died is a boy. :-)',
+    '@MyBelieveTour your wrong dick it was a boy not a girl.  So respect and get your facts straight.',
+    '@MyBelieveTour OMG people are so mean she probably just made a mistake shut up! Losers your the one who had NO RESPECT!!!! ASS HOLES😬',
+    "@MyBelieveTour even tho shes wrong doesn't mean u gotta be a bitch about it. lots of mistakes get made during big stories like this so STFU",
+    '@MyBelieveTour 1) It was a boy who died 2) you must be over 18 to run in the marathon. #smh',
+    '@MyBelieveTour Please take down that picture that child is not dead!',
+    "@MyBelieveTour she didn't die there was only one younge BOY that died",
+    '@MyBelieveTour A) It was an 8 yr old boy B) He was not running in the marathon',
+    '@MyBelieveTour to run in the boston marathon you have to run a qualifying time in another marathon in the same season its an ELITE marathon',
+    '@majestymajesty it was a boy waiting for his father to finish the race with his mom, who got injured in the blast',
+    'The boy who died after waiting for his dad to finish the Boston Marathon. #PrayForBoston RIP http://t.co/DgRkqNwWtV',
+    'RT @CoreySSM: The boy who died after waiting for his dad to finish the Boston Marathon. #PrayForBoston RIP http://t.co/DgRkqNwWtV',
+    'An 8 year old boy was killed in the Boston bombing as he waited to cheer on his father at the finish line. My heart is broken.',
+    "@katkatlovesyou @RomeoSandiego Sad to say the picture isn't legit. Registered runners are 18 years old and above. :(",
+    '@Logan_Dunn15 That picture/story is false.',
+    '8 yr old boy who went to receive his dad at finishing line in Boston killed by bomb. His little sisters limbs blown off via BBC',
+    'RT @SonamOngmo: 8 yr old boy who went to receive his dad at finishing line in Boston killed by bomb. His little sisters limbs blown off  ...',
+    '@yung_money17 @jamie_guckian this girl is wearing a 5k shirt and it was a boy who died..',
+    'BOSTON BOMBINGS: boy who was killed hugged his father who just finished the race then rejoined his mom on the sidewalk. then the explosion.',
+    '@abaccordero SISTER of little boy who died in Boston bombings loses her leg; mother suffers brain injury. great family tragedy.',
+    'RT @abaccordero: BOSTON BOMBINGS: boy who was killed hugged his father who just finished the race then rejoined his mom on the sidewalk. ...',
+    '@stilez @devon15_j picture is a fake, really sad people do that type of shit.',
+    "The little 8 year old boy who died was waiting for his dad at the finish line omg :'(( #prayforboston",
+    "“@iloveyouzaynx: The little 8 year old boy who died was waiting for his dad at the finish line omg :'(( #prayforboston”",
+    "“@iloveyouzaynx: The little 8 year old boy who died was waiting for his dad at the finish line omg :'(( #prayforboston” 😰😔😭💔🙏",
+    "@CommonWhiteGal what's disguising is people like you spreading rumors, it was a boy not even in the race, dumbass",
+    '@Amii_Evlyn_B It was a boy, not a girl.',
+    'An 8 year old boy died today at the hospital due to the Boston explosions. The boy was waiting for his dad to finish the marathon.',
+    'RT @OurJanoskians1D: An 8 year old boy died today at the hospital due to the Boston explosions. The boy was waiting for his dad to finis ...',
+    "RT @iloveyouzaynx: The little 8 year old boy who died was waiting for his dad at the finish line omg :'(( #prayforboston",
+    "One of the dead was a little boy who'd just run out to hug his dad, who'd just finished the marathon. His mom lost her legs. #boston",
+    "RT @Trishie_D: One of the dead was a little boy who'd just run out to hug his dad, who'd just finished the marathon. His mom lost her le ...",
+    'Boy, 8, killed in Boston marathon blast was waiting to meet his dad when he finished #JuiceFM',
+    '“@JuiceChambo: Boy, 8, killed in Boston marathon blast was waiting to meet his dad when he finished #JuiceFM” Fucking hell man.',
+    'RT @JuiceChambo: Boy, 8, killed in Boston marathon blast was waiting to meet his dad when he finished #JuiceFM',
+    'Such a horrible world we live in :( “@JuiceChambo: Boy, 8, killed in Boston marathon blast was waiting to meet his dad when he finished"',
+    '“@JuiceChambo: Boy, 8, killed in Boston marathon blast was waiting to meet his dad when he finished #JuiceFM”',
+    "@Russellsandwich um who are you?! And I actually stole this tweet from someone else, didn't know it was false. So hop off!",
+    '@chelseatannerr @McKenziSmile #prayforboston fake story have to be 18 to run in the race.',
+    '@kingsleyisilebo This picture is FAKE! U HAVE TO BE 18 yrs old to run in #BOSTONMARATHON',
+    '@kingsleyisilebo hate to tell u it was a boy and he was no in marathon',
+    '@kingsleyisilebo This is stupid and fake. It was a boy who died. his name was martin!',
+    '@kingsleyisilebo 8yo boy that died is not that little girl. #ripmartinrichards',
+    '@kingsleyisilebo It was an 8 year old BOY and HE was a spectator NOT a runner. Get your facts straight and stop spreading misinformation.',
+    'The poor 8 year old was a little boy that died not this little girl.',
+    '@kingsleyisilebo I suggest you get your facts straight before you decide to post things for your own notoriety. Fix that please.',
+    '@kingsleyisilebo This is a scam! This is NOT the real child who died. How disrespectful!! #prayforboston',
+    '@kingsleyisilebo was a boy....and he was not a participant',
+    "@kingsleyisilebo she didn't die..",
+    '@kingsleyisilebo it was a boy who died',
+    '@kingsleyisilebo Fake, it was a 8 year old boy......Not girl',
+    '@kingsleyisilebo this little girl is not dead, please check out @JoeCassellaFndt &amp; you will see &amp; let your followers know she is alive!!!',
+    '@kingsleyisilebo Please remove this false photo and statement - shameful - no truth to it! It was an 8 year old boy waiting for his father!',
+    '@kingsleyisilebo there was an 8 year old boy not a girl and he was not running for the sandy hook kids',
+    '@kingsleyisilebo wrong photo, it was an 8 yr old boy named Martin Richard. http://t.co/LgloENLDIb',
+    '@kingsleyisilebo It was an 8 year old boy who died, not this little girl. :-(',
+    '@kingsleyisilebo You all realize the 8 year old who died was a boy, right?',
+    "@kingsleyisilebo She didnt run the marathon, she isn't even dead",
+    '@kingsleyisilebo it was a boy',
+    '@kingsleyisilebo but it was a boy, you moron',
+    '@kingsleyisilebo she didnt run in the boston marathon look at her shirt it says "joe cassella 5k" which is totally different get your facts',
+    "@kingsleyisilebo you can't use that picture for retweets its sad. This isn't even the 8 year old who died.",
+    '@kingsleyisilebo it was a boy idiot',
+    '@kingsleyisilebo it was a little boy who died. Martin Richard',
+    '@kingsleyisilebo it was an 8 year old boy that was killed stop doing this for retweets',
+    '@kingsleyisilebo it was a boy...this is awful',
+    "@kingsleyisilebo You are so fucking stupid.The kid who died was a BOY!!This just shows how people want to look like they care but they don't",
+    '@kingsleyisilebo This is pathetic. You are exploiting a tragedy with fake rumors to get retweets. You are pathetic.',
+    '@BakkeBoy14 its fake :/ it was a little boy not girl',
+    '@faukje @sabdesigns ah oké. Beter deleten idd...',
+    'RT @bretedgephoto: An 8 year old boy was killed in the Boston bombing as he waited to cheer on his father at the finish line. My heart i ...',
+    'THAT 8 YEAR OLD GIRL IS NOT DEAD. THAT IS A SICK AND TWISTED RUMOR. THE ONLY DEATH WE KNOW IS AN 8 YEAR OLD BOY TRUST ME I LIVE IN BOSTON',
+    '@TheRealT_Raww12 IT WAS A BOY YOU SHITHEADED FUCKFACE.',
+    "RT @MichaelSkolnik: Mother of Martin Richard, 8 yr old boy killed in the blasts has a brain injury; boy's sister has lost a leg. #PrayFo ...",
+    "I'm really disappointed. An 8 year old boy dreamed of finishing the Boston Marathon and was killed right before he crossed the finish line.",
+    "RT @Colton_Cochran: I'm really disappointed. An 8 year old boy dreamed of finishing the Boston Marathon and was killed right before he c ...",
+    'RT @HoranNiaIl: An 8 year old boy, Martin Richard, was killed at the Boston Marathon as he waited to give his father a hug at the finish ...',
+    '@HowYouSeelt it was a boy..',
+    '@HowYouSeelt it was a boy not her',
+    '@HowYouSeelt BOY not that little chic',
+    '@HowYouSeelt fake!',
+    '@BoomtownFox yaaa saw the real news article on that earlier :( still sux',
+    "@AkahiOtter That photo is a hoax. They don't allow children to run in the marathon.",
+    'The 8 year old boy who tragically lost his life in Boston yesterday has been named as Martin Richard, who was there to watch his dad run.',
+    "@Zeinah5 @Donia_Iskandar It's better to delete false info...",
+    "@Zeinah5 @donia_iskandar can't believe there is people who load false photos even on a delicate event like this.. This is NOT respect! :(",
+    '@KidRichiee_ wrong.',
+    "@KidRichiee_ this girl isn't dead man.... The child that died was a boy.",
+    '@KidRichiee_ this is a fake picture. Show this innocent girl and her family some respect and delete it.',
+    "This isn't the child that died. 😒",
+    '“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/3up0B61bQE” this is bullshit.. It was a boy',
+    'CNN says it was an 8 year old boy QT @KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/WiQBlC0rIE',
+    '@KidRichiee_ not trying to be mean, but the kid who died in the bombing was a little boy. This girl died during hurricane sandy.',
+    '“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/0iAPeirWWJ” RIP to the little BOY who died...',
+    '@KidRichiee_ it was a 8 year old boy who died, not a girl. &amp; he was a bistandard',
+    '@KidRichiee_ It was an 8 year old BOY...',
+    '@kidrichiee_  Have you noticed that the sign on her shirt says Joe Cassella 5k? Question is: are you gullible or just plain stupid?',
+    '@KidRichiee_ it was actually a boy who died. so this is a lie lol',
+    '@KidRichiee_ Then explain why her number says "Joe Cassella 5K" please? Because a 5K is 23 miles less than a marathon, or am I wrong?',
+    "@KidRichiee_ this girl didn't die in the Boston marathon. This photo was taken at a school http://t.co/fNIzSMi19t",
+    '@KidRichiee_ @sammmmking CNN, http://t.co/vp10GwPXXj, and the Chicago Tribune are all reporting that the 8-year-old was a boy.',
+    '@KidRichiee_ dude, you realize that girl isn\'t even in Boston right? Her sign specifically says "5K." Smh.',
+    'But it was a 8 year old boy',
+    '“@KidRichiee_: R.I.P this 8 year old girl who died in Boston http://t.co/IDAt3Axuef” it was a boy take this down you disrespectful dumbass',
+    '@KidRichiee_ it was a boy....',
+    "“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/lAWYLX3fGu” it was an 8 year old boy. This ain't even valid",
+    '“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/BzkAtMzSb9” it was a boy though......',
+    '@KidRichiee_ @totally_cheer this is fake it was a little boy who died not a girl.',
+    "“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/7bQbz6mmH7” it was an 8 year old boy.. I'll pray for you too.",
+    '@KidRichiee_ they just said on the news it was a little boy who died',
+    "“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/QfLyHwbhb3” omfg she didn't die, this isn't even the BM",
+    "@KidRichiee_ this girl didn't die in the Boston marathon it was a little boy. This girl died in a different marathon",
+    '“@KidRichiee_: R.I.P this 8 year old girl who died in Boston RT 😔🙏 http://t.co/6QhMg5llmY” it was a boy dumbass',
+    "@KidRichiee_ stop sharing this photo it's fucking disrespectful she didn't die a little boy on the sidelines did",
+    "@KidRichiee_ this isn't real, it was a little boy. but it's still heartbreaking.",
+    '@KidRichiee_ stop this ignorance. Her race bib says Joe Cassella 5K..',
+    '@_DanceItAway she didn’t die',
+    '@PLL_A_Team but the marathon is 18+ and on her shirt it says 5k when the marathon was 23k or something lol',
+    '@PLL_A_Team It was a boy that died, not a girl.',
+    "@PLL_A_Team Don't believe everything you see on twitter http://t.co/pWpTOHxo9U",
+    '@vaginiallhoran @PLL_A_Team People are sheep, bro. Who believes ANYTHING they see on twitter?',
+    "@PLL_A_Team She didn't die it is hoax. News article here http://t.co/AuKFsqD5hS …",
+    "@PLL_A_Team she didn't die it was a 8year old boy don't believe everything you hear",
+    '@PLL_A_Team this is fake-it was an 8yr old boy that died',
+    "“@carlygose: R.I.P. to this little girl 😭 #prayforboston http://t.co/zmICX7NXG3” 8 year olds can't even run the Boston marathon...",
+    '@carlygose a 8-year old boy died, not a girl. this is a random picture of a girl running... lol',
+    'Sorry but this picture is wrong. It was an 8 year old BOY who died.',
+    "141 injured 3 dead includining an 8 year old boy,!!!!  In Boston,,!!!!!!! WHY,??????!!!!!!!! It's really fuked up,!!!!",
+    "あんたいい奴(´･Д･)」 RT @FlavorFlav: 141 injured 3 dead includining an 8 year old boy,!!!  In Boston,,!!!! WHY,??????!!!! It's really fuked up,!!!",
+    "RT @FlavorFlav: 141 injured 3 dead includining an 8 year old boy,!!!!  In Boston,,!!!!!!! WHY,??????!!!!!!!! It's really fuked up,!!!!",
+    "@MinnyLovin Pretty sure that's not real"
+]
+
+doubtful_lower = {t.lower() for t in doubtful}
+immune_lower = {t.lower() for t in immune}
+irrelevant_lower = {t.lower() for t in irrelevant}
+doubtful_norm = {normalize(t) for t in doubtful}
+immune_norm = {normalize(t) for t in immune}
+irrelevant_norm = {normalize(t) for t in irrelevant}
+vader = SentimentIntensityAnalyzer()
+
+
+#classify the activity into its adequate compartment from my SDPNRI model
+def classify(text):
+
+    txt = text.lower()
+    if normalize(txt) in doubtful_norm:
+        return "D", txt
+    if normalize(txt) in immune_norm:
+        return "I", txt
+
+    try:
+        detected = detect(txt) #detect the language of the text
+    except LangDetectException:
+        detected = "unknown"
+
+    if detected == "en":
+        translated = txt
+    else:
+        translated = GoogleTranslator(source="auto", target="en").translate(txt)#if text not in English translate
+
+    if normalize(txt) in irrelevant_norm:
+        return "skip", translated
+
+    score = vader.polarity_scores(translated)["compound"]
+    if score <= -0.5:
+        return "N", translated
+    return "P", translated
+
+
+def parse_time(act):
+    return datetime.strptime(act["created_at"], date_format)
+
+
+def main():
+    with open("boston_users_database.json", "r", encoding="utf-8") as f:
+        users_db = json.load(f)
+
+    # deduplicate the activities that appear twice in the user dataset
+    seen_tweet_ids = set()
+    user_activities = {} 
+
+    for user, activities in users_db.items():
+        deduped = []
+        for act in activities:
+            tid = act.get("tweet_id")
+            if tid is None or tid in seen_tweet_ids:
+                continue
+            seen_tweet_ids.add(tid)
+            deduped.append(act)
+        if deduped:
+            deduped.sort(key=parse_time)
+            user_activities[user] = deduped
+
+    
+    all_times = [parse_time(a) for acts in user_activities.values() for a in acts]
+    t0 = min(all_times)#gives the earliest activity time according to my dataset
+    print(f"Global t0 = {t0}") 
+
+    def global_seconds(act):
+        return (parse_time(act) - t0).total_seconds()
+
+    user_transitions = {}
+    events = []
+
+    for user, activities in user_activities.items():
+        transitions = []
+        prev_state = "S" #all users are initialized as suceptibles
+
+        for act in activities:
+            text = act.get("text", "")
+            t_sec = global_seconds(act)
+            state, translated = classify(text)
+
+            if state == "skip":
+                continue
+            if prev_state == "I":
+                state = "I"
+            transitions.append({
+                "thread_id": act.get("thread_id"),
+                "tweet_id": act.get("tweet_id"),
+                "action_type": act.get("type"),
+                "timestamp": act.get("created_at"),
+                "seconds_since_global_t0": t_sec,
+                "sentiment_score": vader.polarity_scores(translated)["compound"] if translated else 0.0,
+                "state": state,
+                "transition": f"{prev_state} -> {state}",
+                "text": text,
+                "translated": translated if text.lower() != translated else None
+            })
+            events.append({"time": t_sec, "user": user, "to_state": state})
+            prev_state = state
+
+        user_transitions[user] = transitions
+
+    observation_end = max(e["time"] for e in events)
+
+    last_activity_time = {}
+    for e in events:
+        last_activity_time[e["user"]] = max(last_activity_time.get(e["user"], e["time"]), e["time"])
+
+    final_state = {
+    user: transitions[-1]["state"] 
+    for user, transitions in user_transitions.items() if transitions
+    }
+
+    n_restrained = 0
+    for user, last_t in last_activity_time.items():
+        if final_state.get(user) == "I":
+            continue
+        restrained_time = last_t + restrained_after
+        if restrained_time <= observation_end:
+            events.append({"time": restrained_time, "user": user, "to_state": "R"})
+            n_restrained += 1
+
+    n_immune = sum(1 for s in final_state.values() if s == "I")
+    print(f"{n_restrained} of {len(user_activities) - n_immune} non-immune users "
+          f"went quiet for >{restrained_after}s before the observation "
+          f"({n_immune} immune users)")
+
+    with open("boston_user_transitions.json", "w", encoding="utf-8") as out:
+        json.dump(user_transitions, out, indent=4)
+
+    events.sort(key=lambda e: e["time"])
+
+    valid_users = set()
+    for user, activities in user_activities.items():
+        for act in activities:
+            state, _ = classify(act.get("text", ""))
+            if state != "skip":
+                valid_users.add(user)
+                break 
+
+    all_users = list(valid_users)
+    current_populations = {"S": len(all_users), "D": 0, "P": 0, "N": 0, "I": 0, "R": 0}
+    user_states = {u: "S" for u in all_users}
+
+    population_timeline = []
+    for event in events:
+        u, new_state = event["user"], event["to_state"]
+        old_state = user_states[u]
+        if old_state != new_state:
+            current_populations[old_state] -= 1
+            current_populations[new_state] += 1
+            user_states[u] = new_state
+            population_timeline.append({"time": event["time"], **current_populations})
+
+    times = [e["time"] for e in population_timeline]
+    series = {k: [e[k] for e in population_timeline] for k in ("S", "D", "P", "N", "I", "R")}
+
+    colors = {"S": "#7f8c8d", "D": "#f39c12", "P": "#e74c3c", "N": "#9b59b6","I": "#2ecc71", "R": "#3498db"}
+    labels = {
+        "S": "S (Susceptible)",
+        "D": "D (Doubtful)",
+        "P": "P (Positively Infected)",
+        "N": "N (Negatively Infected)",
+        "I": "I (Immune - Debunkers)",
+        "R": f"R (Restrained - quiet >{restrained_after}s)",
+    }
+
+    plt.figure(figsize=(12, 6))
+    for k in ("S", "D", "P", "N", "I", "R"):
+        style = "--" if k == "S" else "-"
+        plt.plot(times, series[k], label=labels[k], color=colors[k],linewidth=2, linestyle=style)
+
+    plt.title("SDPNRI Compartment Dynamics Over Time (Boston Bombings)",
+              fontsize=14, fontweight="bold")
+    plt.xlabel("Seconds Since Global $t_0$", fontsize=12)
+    plt.ylabel("Number of Users", fontsize=12)
+    plt.xscale("symlog", linthresh=3000)
+    plt.grid(True, linestyle=":", alpha=0.6)
+    plt.legend(loc="upper right", frameon=True, shadow=True)
+    plt.tight_layout()
+    plt.xlim(0, 600000)
+    plt.savefig("sdpnri_timeline_diagram.png", dpi=300)
+    print("Saved timeline plot as 'sdpnri_timeline_diagram.png'")
+
+
+if __name__ == "__main__":
+    main()

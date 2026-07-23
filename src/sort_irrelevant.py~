@@ -1,0 +1,9 @@
+import json
+with open("boston_user_transitions.json", "r", encoding="utf-8") as f:
+    transitions = json.load(f)
+with open("boston_users_database.json", "r", encoding="utf-8") as f:
+    users_db = json.load(f)
+for user, activities in transitions:
+    if activities==[]:
+        user_data = users_db.get(user,{})
+        print(user,":",user_data.get[user].get("text")
