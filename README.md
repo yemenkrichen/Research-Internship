@@ -11,6 +11,26 @@ Pretweet = Political Bias × Emotion (Vader score)
 • In the conspiracy scenario, the text and network remain identical, but we activate the bimodal political bias variable which acts as a multiplier prompting the need of more debunkers.
 ## Dataset
 For this project I will be working with a subset from the PHEME Twitter data from the 2013 Boston Marathon Bombings. The rumor claimed that an 8-year-old girl, who supposedly survived the Sandy Hook Elementary School shooting in December 2012, traveled to Boston four months later to run the marathon in remembrance of her classmates, and was tragically killed in the bombings.
+## Installation and Setup
+
+To run this project, clone the repository and install the required Python dependencies.
+
+```bash
+# Clone the repository
+git clone https://github.com/yemenkrichen/Research-Internship.git
+
+# Navigate to the project directory
+cd Research-Internship
+
+# Create a virtual environment
+python3 -m venv venv
+
+# Activate the virtual environment (Linux/macOS)
+source venv/bin/activate
+
+# Install project dependencies
+pip install mesa pandas numpy nltk matplotlib networkx
+```
 ## Project Structure
 The repository is organized into three main components: the raw and processed datasets, the data processing pipeline, and the Agent-Based Model (ABM) simulation environment.
 ## Code
